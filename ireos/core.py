@@ -1,4 +1,5 @@
 import numpy as np
+from sklearn.svm import SVC
 
 # TODO: extend from sklearn
 class IREOS():
@@ -34,11 +35,11 @@ class IREOS():
             if type(scale) is int:
                 scale = scales[scale]
             
-            start = 0
+            start = 1
             stop = self.gamma_max
             steps = self.n_gamma
             if scale == 'linear':
-                self.gammas = np.linspace(0, self.gamma_max, self.n_gamma)
+                self.gammas = np.linspace(start, stop, steps)
             elif scale == 'quadratic':
                 quad_start = np.power(start, 2)
                 quad_stop = np.power(stop, 2)
@@ -63,3 +64,38 @@ class IREOS():
     def get_noutliers(self):
         solution = self.solutions[0]
         return sum(solution > 0)
+
+    def evaluate_solutions(self):
+        evaluated_solutions = np.array([])
+
+        for solution in self.solutions:
+            # TODO: implement cost weights for outliers
+
+            evaluated_solution = self.evaluate_solution(solution)
+            evaluated_solutions = np.append(evaluated_solutions, evaluated_solution)
+
+        return evaluated_solutions
+
+    def evaluate_solution(self, solution):
+        outlier_index = np.arange(0, solution.shape[0])[solution > 0]
+        evaluations = np.array([])
+
+        # TODO: parallelize
+        for i_outlier in outlier_index:
+            evaluation = dict()
+            # Set the label for the observation being evaluated as outlier (1)
+            y_outlier = -1 * np.ones(self.data.shape[0])
+            y_outlier[i_outlier] = 1
+
+            for gamma in self.gammas:
+                # Create a new model and train
+                clf = SVC(kernel='rbf', gamma=gamma, probability=True)
+                clf.fit(self.data, y_outlier)
+
+                # Get probability of the observation being classified as an outlier
+                p = clf.predict_proba([self.data[i_outlier]])[0, 0]
+                evaluation[gamma] = p
+
+            evaluations = np.append(evaluations, evaluation)
+
+        return evaluations
