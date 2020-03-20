@@ -3,6 +3,9 @@ from sklearn.svm import SVC
 
 # TODO: extend from sklearn
 class IREOS():
+    __inlier_class = 1
+    __outlier_class = -1
+
     def __init__(self, data, solutions):
         self.data = data
         self.solutions = solutions
@@ -31,10 +34,10 @@ class IREOS():
 
             if type(scale) is float:
                 scale = int(scale)
-            
+
             if type(scale) is int:
                 scale = scales[scale]
-            
+
             start = 1
             stop = self.gamma_max
             steps = self.n_gamma
@@ -77,23 +80,25 @@ class IREOS():
         return evaluated_solutions
 
     def evaluate_solution(self, solution):
-        outlier_index = np.arange(0, solution.shape[0])[solution > 0]
+        outlier_index = np.arange(0, solution.shape[0])[solution == self.__outlier_class]
         evaluations = np.array([])
 
         # TODO: parallelize
         for i_outlier in outlier_index:
             evaluation = dict()
-            # Set the label for the observation being evaluated as outlier (1)
-            y_outlier = -1 * np.ones(self.data.shape[0])
-            y_outlier[i_outlier] = 1
+
+            # Set the label for the observation being evaluated as outlier
+            y_outlier = self.__inlier_class * np.ones(self.data.shape[0])
+            y_outlier[i_outlier] = self.__outlier_class
 
             for gamma in self.gammas:
                 # Create a new model and train
-                clf = SVC(kernel='rbf', gamma=gamma, probability=True)
+                clf = SVC(gamma=gamma, probability=True)
                 clf.fit(self.data, y_outlier)
 
                 # Get probability of the observation being classified as an outlier
-                p = clf.predict_proba([self.data[i_outlier]])[0, 0]
+                outlier_label_i = np.argwhere(clf.classes_ == self.__outlier_class)[0,0]
+                p = clf.predict_proba([self.data[i_outlier]])[0, outlier_label_i]
                 evaluation[gamma] = p
 
             evaluations = np.append(evaluations, evaluation)
